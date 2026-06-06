@@ -22,7 +22,8 @@ export function ProcessJobButton({ jobId }: ProcessJobButtonProps) {
       try {
         data = responseText ? (JSON.parse(responseText) as { ok?: boolean; error?: string }) : {};
       } catch {
-        data = { ok: false, error: responseText || `启动失败：${response.status}` };
+        const preview = responseText.length > 160 ? `${responseText.slice(0, 160)}...` : responseText;
+        data = { ok: false, error: preview ? `服务返回非 JSON：${preview}` : `启动失败：${response.status}` };
       }
 
       if (!response.ok || !data.ok) {
