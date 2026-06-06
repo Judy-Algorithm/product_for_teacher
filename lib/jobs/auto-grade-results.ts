@@ -9,7 +9,8 @@ function fallbackResult(result: QuestionResult, reason: string): QuestionResult 
     route: "teacher_review",
     score: 0,
     reason,
-    teacherComment: result.teacherComment || "请老师确认 OCR 结果和得分。"
+    teacherComment: result.teacherComment || "请老师确认 OCR 结果和得分。",
+    reviewStatus: result.reviewStatus === "needs_rescan" ? "needs_rescan" : "auto_accepted"
   };
 }
 
@@ -20,7 +21,8 @@ function applyKimiResult(result: QuestionResult, kimiResult: KimiGradeResult, fu
     route: "llm",
     score: boundedScore,
     reason: kimiResult.reason || "Kimi 已根据评分标准批改",
-    teacherComment: result.teacherComment
+    teacherComment: result.teacherComment,
+    reviewStatus: result.reviewStatus === "needs_rescan" ? "needs_rescan" : "auto_accepted"
   };
 }
 

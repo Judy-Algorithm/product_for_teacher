@@ -64,7 +64,8 @@ export const demoJob: GradingJob = {
       route: "rule",
       score: 2,
       reason: "句子完整，标点正确。",
-      teacherComment: "书写较规范。",
+      cropConfidence: "high",
+      reviewStatus: "auto_accepted",
       tokenEstimate: { input: 0, output: 0, savedByRouting: 280 }
     },
     {
@@ -76,7 +77,8 @@ export const demoJob: GradingJob = {
       route: "rule",
       score: 16,
       reason: "8 个词语均正确。",
-      teacherComment: "拼音对应准确。",
+      cropConfidence: "high",
+      reviewStatus: "auto_accepted",
       tokenEstimate: { input: 0, output: 0, savedByRouting: 520 }
     },
     {
@@ -88,7 +90,8 @@ export const demoJob: GradingJob = {
       route: "rule",
       score: 10,
       reason: "10 个选项均正确。",
-      teacherComment: "选择准确。",
+      cropConfidence: "high",
+      reviewStatus: "auto_accepted",
       tokenEstimate: { input: 0, output: 0, savedByRouting: 460 }
     },
     {
@@ -100,7 +103,8 @@ export const demoJob: GradingJob = {
       route: "teacher_review",
       score: 10,
       reason: "5 个组词均可接受。",
-      teacherComment: "组词正确。",
+      cropConfidence: "medium",
+      reviewStatus: "auto_accepted",
       tokenEstimate: { input: 0, output: 0, savedByRouting: 360 }
     }
   ]

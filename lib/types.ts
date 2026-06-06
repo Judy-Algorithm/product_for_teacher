@@ -6,6 +6,8 @@ export type QuestionType =
   | "short_answer";
 
 export type GradingRoute = "rule" | "llm" | "teacher_review";
+export type CropConfidence = "high" | "medium" | "low";
+export type ReviewStatus = "auto_accepted" | "teacher_modified" | "needs_rescan";
 
 export interface CropBox {
   x: number;
@@ -35,7 +37,9 @@ export interface QuestionResult {
   route: GradingRoute;
   score: number;
   reason: string;
-  teacherComment: string;
+  teacherComment?: string;
+  cropConfidence?: CropConfidence;
+  reviewStatus?: ReviewStatus;
   tokenEstimate: {
     input: number;
     output: number;
