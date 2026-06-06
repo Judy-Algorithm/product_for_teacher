@@ -2,11 +2,15 @@ FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
 ENV PIP_NO_CACHE_DIR=1
+ENV FLAGS_use_mkldnn=0
+ENV OMP_NUM_THREADS=1
+ENV CPU_NUM=1
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
+    libgomp1 \
     libgl1 \
     && rm -rf /var/lib/apt/lists/*
 

@@ -62,14 +62,14 @@ def order_points(points: np.ndarray) -> np.ndarray:
 
 
 def correct_perspective(image: np.ndarray) -> tuple[np.ndarray, CropBox]:
+    image_height, image_width = image.shape[:2]
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (5, 5), 0)
     edges = cv2.Canny(blurred, 50, 150)
     contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if not contours:
-        height, width = image.shape[:2]
-        return image, CropBox(0, 0, width, height, 0.3)
+        return image, CropBox(0, 0, image_width, image_height, 0.3)
 
     contours = sorted(contours, key=cv2.contourArea, reverse=True)
     for contour in contours[:8]:
@@ -85,6 +85,12 @@ def correct_perspective(image: np.ndarray) -> tuple[np.ndarray, CropBox]:
             height_b = np.linalg.norm(top_left - bottom_left)
             max_width = int(max(width_a, width_b))
             max_height = int(max(height_a, height_b))
+            contour_area = cv2.contourArea(contour)
+            image_area = image_width * image_height
+            aspect_ratio = max_width / max(max_height, 1)
+            if contour_area < image_area * 0.18 or max_height < image_height * 0.35 or aspect_ratio > 1.6:
+                continue
+
             destination = np.array(
                 [[0, 0], [max_width - 1, 0], [max_width - 1, max_height - 1], [0, max_height - 1]],
                 dtype="float32",
@@ -94,8 +100,7 @@ def correct_perspective(image: np.ndarray) -> tuple[np.ndarray, CropBox]:
             x, y, w, h = cv2.boundingRect(approx)
             return warped, CropBox(int(x), int(y), int(w), int(h), 0.9)
 
-    height, width = image.shape[:2]
-    return image, CropBox(0, 0, width, height, 0.4)
+    return image, CropBox(0, 0, image_width, image_height, 0.4)
 
 
 def detect_question_boxes(corrected: np.ndarray) -> list[CropBox]:
@@ -213,6 +218,9 @@ def route_question(question_type: str, ocr_confidence: float) -> Route:
 
 
 def get_ocr_engine():
+    os.environ.setdefault("FLAGS_use_mkldnn", "0")
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+    os.environ.setdefault("CPU_NUM", "1")
     from paddleocr import PaddleOCR
 
     return PaddleOCR(use_angle_cls=True, lang="ch")
@@ -220,17 +228,52 @@ def get_ocr_engine():
 
 def run_ocr(crop_path: str, ocr_engine=None) -> tuple[str, float]:
     engine = ocr_engine or get_ocr_engine()
-    raw_result = engine.ocr(crop_path, cls=True)
-    lines = raw_result[0] if raw_result else []
     texts: list[str] = []
     confidences: list[float] = []
 
-    for line in lines:
-        if len(line) >= 2 and isinstance(line[1], (list, tuple)):
-            text = str(line[1][0])
-            confidence = float(line[1][1])
-            texts.append(text)
-            confidences.append(confidence)
+    if hasattr(engine, "predict"):
+        raw_result = engine.predict(crop_path)
+    else:
+        raw_result = engine.ocr(crop_path)
+
+    def collect_ocr_text(result) -> None:
+        if result is None:
+            return
+
+        if hasattr(result, "json"):
+            json_result = result.json
+            collect_ocr_text(json_result() if callable(json_result) else json_result)
+            return
+
+        if isinstance(result, dict):
+            payload = result.get("res", result)
+            rec_texts = payload.get("rec_texts")
+            rec_scores = payload.get("rec_scores") or []
+            if isinstance(rec_texts, list):
+                for index, text in enumerate(rec_texts):
+                    if text:
+                        texts.append(str(text))
+                        score = rec_scores[index] if index < len(rec_scores) else 0.0
+                        confidences.append(float(score))
+                return
+
+            for value in payload.values():
+                collect_ocr_text(value)
+            return
+
+        if isinstance(result, (list, tuple)):
+            if len(result) >= 2 and isinstance(result[1], (list, tuple)) and result[1]:
+                text = result[1][0]
+                if text:
+                    texts.append(str(text))
+                    score = result[1][1] if len(result[1]) > 1 else 0.0
+                    confidences.append(float(score))
+                    return
+
+            for item in result:
+                collect_ocr_text(item)
+
+    collect_ocr_text(raw_result)
 
     if not texts:
         return "", 0.0
