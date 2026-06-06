@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
 import type { GradingJob } from "@/lib/types";
 import { GradingPanel } from "./GradingPanel";
@@ -23,6 +24,26 @@ export function QuestionReview({ job }: { job: GradingJob }) {
           </Link>
         </div>
         <div className="space-y-4">
+          {job.results.length === 0 ? (
+            <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+              <h2 className="text-lg font-semibold">任务已创建</h2>
+              <p className="mt-1 text-sm text-neutral-600">学生试卷和评分标准已经保存，下一步会交给 Python worker 做裁切和 OCR。</p>
+              <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                <div>
+                  <div className="mb-2 text-sm font-medium text-neutral-700">学生试卷</div>
+                  <div className="relative aspect-[3/4] max-h-[620px] overflow-hidden rounded-md bg-neutral-100">
+                    <Image src={job.studentSheetUrl} alt="学生试卷" fill className="object-contain" />
+                  </div>
+                </div>
+                <div>
+                  <div className="mb-2 text-sm font-medium text-neutral-700">答案与评分标准</div>
+                  <div className="relative aspect-[3/4] max-h-[620px] overflow-hidden rounded-md bg-neutral-100">
+                    <Image src={job.answerSheetUrl} alt="答案与评分标准" fill className="object-contain" />
+                  </div>
+                </div>
+              </div>
+            </section>
+          ) : null}
           {job.results.map((result) => {
             const rubric = job.rubrics.find((item) => item.questionId === result.questionId);
             if (!rubric) return null;

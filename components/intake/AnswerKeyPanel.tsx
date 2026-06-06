@@ -1,6 +1,6 @@
 import { ImageUploadPanel } from "./ImageUploadPanel";
 
-export function AnswerKeyPanel() {
+export function AnswerKeyPanel({ onUploaded }: { onUploaded: (imageUrl: string) => void }) {
   return (
     <ImageUploadPanel
       title="上传答案与评分标准"
@@ -9,6 +9,7 @@ export function AnswerKeyPanel() {
       buttonLabel="选择答案与评分标准图片"
       emptyLabel="上传答案与评分标准图片"
       aspectClassName="aspect-[16/23]"
+      onUploaded={onUploaded}
     />
   );
 }
