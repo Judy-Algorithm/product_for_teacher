@@ -27,18 +27,23 @@ export async function POST(request: Request) {
   }
 
   if (process.env.BLOB_READ_WRITE_TOKEN) {
-    const blob = await put(`papers/${Date.now()}-${safeFileName(file.name)}`, file, {
-      access: "public",
-      addRandomSuffix: true
-    });
+    try {
+      const blob = await put(`papers/${Date.now()}-${safeFileName(file.name)}`, file, {
+        access: "public",
+        addRandomSuffix: true
+      });
 
-    return NextResponse.json({
-      ok: true,
-      imageUrl: blob.url,
-      fileName: file.name,
-      fileSize: file.size,
-      storage: "vercel-blob"
-    });
+      return NextResponse.json({
+        ok: true,
+        imageUrl: blob.url,
+        fileName: file.name,
+        fileSize: file.size,
+        storage: "vercel-blob"
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown Blob upload error";
+      return NextResponse.json({ ok: false, error: `Blob upload failed: ${message}` }, { status: 502 });
+    }
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
