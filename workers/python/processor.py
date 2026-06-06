@@ -50,11 +50,9 @@ class QuestionAnchor:
     order: int
 
 
-FALLBACK_QUESTION_TEMPLATES = [
-    ("q1", "第一题", "copy_sentence", (0.08, 0.19, 0.86, 0.16)),
-    ("q2", "第二题", "word", (0.08, 0.34, 0.86, 0.20)),
-    ("q3", "第三题", "choice", (0.08, 0.52, 0.86, 0.22)),
-    ("q4", "第四题", "word_building", (0.08, 0.73, 0.86, 0.18)),
+_CHINESE_NUMS = [
+    "一", "二", "三", "四", "五", "六", "七", "八", "九", "十",
+    "十一", "十二", "十三", "十四", "十五",
 ]
 
 QUESTION_NUMBER_MAP = {
@@ -68,19 +66,51 @@ QUESTION_NUMBER_MAP = {
     "八": 8,
     "九": 9,
     "十": 10,
+    "十一": 11,
+    "十二": 12,
+    "十三": 13,
+    "十四": 14,
+    "十五": 15,
 }
+
+
+def _make_fallback_templates(n: int = 12) -> list[tuple[str, str, str, tuple[float, float, float, float]]]:
+    """Evenly distribute n question slots below the 20% header block."""
+    header_skip = 0.20
+    usable_height = 1.0 - header_skip
+    slot_height = usable_height / n
+    templates = []
+    for i in range(n):
+        qid = f"q{i + 1}"
+        cn = _CHINESE_NUMS[i] if i < len(_CHINESE_NUMS) else str(i + 1)
+        label = f"第{cn}题"
+        y_start = header_skip + i * slot_height
+        templates.append((qid, label, "short_answer", (0.04, y_start, 0.93, slot_height)))
+    return templates
+
+
+FALLBACK_QUESTION_TEMPLATES = _make_fallback_templates(12)
 
 QUESTION_TYPE_BY_ID = {
     "q1": "copy_sentence",
     "q2": "word",
     "q3": "choice",
     "q4": "word_building",
+    "q5": "short_answer",
+    "q6": "short_answer",
+    "q7": "short_answer",
+    "q8": "short_answer",
+    "q9": "short_answer",
+    "q10": "short_answer",
+    "q11": "short_answer",
+    "q12": "short_answer",
 }
 
 
 def question_label(index: int) -> str:
-    labels = ["第一题", "第二题", "第三题", "第四题", "第五题", "第六题", "第七题", "第八题", "第九题", "第十题"]
-    return labels[index] if index < len(labels) else f"第{index + 1}题"
+    if index < len(_CHINESE_NUMS):
+        return f"第{_CHINESE_NUMS[index]}题"
+    return f"第{index + 1}题"
 
 
 def question_label_from_number(number: int) -> str:
@@ -96,11 +126,12 @@ def parse_question_number(text: str) -> int | None:
     if not normalized:
         return None
 
-    chinese_match = re.match(r"^[（(]?([一二三四五六七八九十])[）)]?[、.]", normalized)
+    # Match compound Chinese numbers (十一, 十二…) before single ones so alternation works left-to-right.
+    chinese_match = re.match(r"^[（(]?(十[一二三四五六七八九]|[一二三四五六七八九十])[）)]?[、，,.]", normalized)
     if chinese_match:
         return QUESTION_NUMBER_MAP.get(chinese_match.group(1))
 
-    arabic_match = re.match(r"^(\d{1,2})[、.]", normalized)
+    arabic_match = re.match(r"^(\d{1,2})[、，,.]", normalized)
     if arabic_match:
         number = int(arabic_match.group(1))
         return number if 1 <= number <= 20 else None
@@ -258,8 +289,10 @@ def run_ocr_layout(image_path: str, ocr_engine) -> list[OcrTextBox]:
 
 def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: int, page_height: int) -> list[QuestionAnchor]:
     anchors_by_number: dict[int, QuestionAnchor] = {}
-    min_y = int(page_height * 0.08)
-    max_x = int(page_width * 0.45)
+    # Skip the top 20% — Chinese exam papers have a header block (title + score table)
+    # that contains 一/二/三/… characters which must not be confused with question labels.
+    min_y = int(page_height * 0.20)
+    max_x = int(page_width * 0.55)
 
     for text_box in ocr_boxes:
         if text_box.y < min_y or text_box.x > max_x:
