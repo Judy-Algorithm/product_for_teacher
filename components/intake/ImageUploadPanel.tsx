@@ -38,7 +38,7 @@ export function ImageUploadPanel({
 }: ImageUploadPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [imageSrc, setImageSrc] = useState<string | null>(null);
-  const [uploadStatus, setUploadStatus] = useState("请选择本地图片。");
+  const [uploadStatus, setUploadStatus] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -115,7 +115,7 @@ export function ImageUploadPanel({
           {isUploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
           {buttonLabel}
         </button>
-        <p className="mt-2 text-center text-sm text-neutral-600">{uploadStatus}</p>
+        {uploadStatus ? <p className="mt-2 text-center text-sm text-neutral-600">{uploadStatus}</p> : null}
       </div>
 
       {footer}
