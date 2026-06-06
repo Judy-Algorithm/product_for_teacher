@@ -260,10 +260,11 @@ def process_job(job_id: str, image_path: str, public_worker_url: str = "", ocr_e
     cv2.imwrite(corrected_path, corrected)
 
     question_crops = crop_questions(corrected, output_dir)
+    engine = ocr_engine or get_ocr_engine()
     results = []
 
     for crop in question_crops:
-        recognized_answer, confidence = run_ocr(crop.crop_path, ocr_engine=ocr_engine)
+        recognized_answer, confidence = run_ocr(crop.crop_path, ocr_engine=engine)
         route = route_question(crop.question_type, confidence)
         results.append(
             {
