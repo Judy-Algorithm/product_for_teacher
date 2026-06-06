@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { autoGradeResults } from "@/lib/jobs/auto-grade-results";
 import { getJobFromDatabase, updateJobResults } from "@/lib/jobs/repository";
 import type { QuestionResult } from "@/lib/types";
 
@@ -23,9 +24,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
   }
 
+  const results = body.status === "failed" ? body.results : await autoGradeResults(job, body.results);
+
   await updateJobResults(body.jobId, {
     status: body.status,
-    results: body.results,
+    results,
     correctedSheetUrl: body.correctedSheetUrl
   });
 

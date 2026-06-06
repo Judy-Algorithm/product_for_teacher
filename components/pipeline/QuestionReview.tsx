@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
 import { shouldPollJob } from "@/lib/jobs/processing-state";
+import { getDisplayRubric } from "@/lib/jobs/result-rubric";
 import type { GradingJob } from "@/lib/types";
 import { GradingPanel } from "./GradingPanel";
 import { ProcessJobButton } from "./ProcessJobButton";
@@ -47,9 +48,8 @@ export function QuestionReview({ job }: { job: GradingJob }) {
               </div>
             </section>
           ) : null}
-          {job.results.map((result) => {
-            const rubric = job.rubrics.find((item) => item.questionId === result.questionId);
-            if (!rubric) return null;
+          {job.results.map((result, index) => {
+            const rubric = getDisplayRubric(job.rubrics, result, index);
             return (
               <section key={result.questionId} className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_420px]">
                 <QuestionCropPanel result={result} rubric={rubric} />
