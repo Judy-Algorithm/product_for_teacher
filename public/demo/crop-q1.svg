@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360">
+  <rect width="900" height="360" fill="#f8fafc"/>
+  <text x="48" y="62" font-size="28" font-weight="700" fill="#111827">一、按要求规范书写下面句子。（2分）</text>
+  <text x="310" y="128" font-size="40" font-weight="700" fill="#111827">不知则问，不能则学。</text>
+  <rect x="190" y="165" width="560" height="70" fill="white" stroke="#111827" stroke-width="2"/>
+  <text x="215" y="213" font-size="38" fill="#334155" font-family="serif">不知则问，不能则学。</text>
+  <path d="M470 250 C500 314 565 194 635 145" fill="none" stroke="#b4233c" stroke-width="5"/>
+  <text x="715" y="145" font-size="54" fill="#b4233c" font-family="cursive">+2</text>
+</svg>

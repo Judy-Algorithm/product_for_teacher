@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="420" viewBox="0 0 900 420">
+  <rect width="900" height="420" fill="#f8fafc"/>
+  <text x="46" y="52" font-size="28" font-weight="700" fill="#111827">三、在正确的答案下面画“√”。（10分）</text>
+  <g font-size="27" fill="#111827" font-family="serif">
+    <text x="70" y="112">1. 大家都觉得（de děi）学习音乐（yuè lè）很快乐。</text>
+    <text x="70" y="168">2. 农民伯伯把棉花的种（zhǒng zhòng）子种（zhòng zhǒng）到地里。</text>
+    <text x="70" y="224">3. 池塘里只（zhī zhǐ）有一只（zhī zhǐ）鸭子。</text>
+    <text x="70" y="280">4. 我多希望能（在 再）次和同学们（在 再）操场上玩。</text>
+    <text x="70" y="336">5. 过了（清 青 晴）明节，天气越来越热了。</text>
+  </g>
+  <g stroke="#b4233c" stroke-width="5" fill="none">
+    <path d="M312 105 l20 26 l48 -62 M510 105 l20 26 l48 -62 M404 160 l20 26 l48 -62 M675 160 l20 26 l48 -62 M230 215 l20 26 l48 -62 M480 215 l20 26 l48 -62 M300 270 l20 26 l48 -62 M600 270 l20 26 l48 -62 M205 326 l20 26 l48 -62"/>
+  </g>
+  <text x="735" y="75" font-size="54" fill="#b4233c" font-family="cursive">+10</text>
+</svg>

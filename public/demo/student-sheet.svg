@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1280" viewBox="0 0 900 1280">
+  <rect width="900" height="1280" fill="#e5e7eb"/>
+  <path d="M120 45 L810 78 L776 1225 L88 1200 Z" fill="#fbfbf8" stroke="#d7d7cf" stroke-width="3"/>
+  <g transform="translate(122 88) rotate(1.6)">
+    <text x="118" y="54" font-size="42" font-family="serif" fill="#172033">一年级下册语文期末拔尖测试卷</text>
+    <text x="470" y="98" font-size="20" font-family="sans-serif" fill="#172033">时间：60分钟</text>
+    <text x="640" y="98" font-size="20" font-family="sans-serif" fill="#172033">总分：100分</text>
+    <rect x="65" y="128" width="680" height="70" fill="none" stroke="#1f2937" stroke-width="2"/>
+    <text x="80" y="172" font-size="24" fill="#111827">题号  一  二  三  四  五  六  七  八  九  十  十一 十二  总分</text>
+    <text x="105" y="215" font-size="30" fill="#a32135" font-family="cursive">2 + 16 + 10 + 10 + 8 + 8 + 6 + 4 + 4 + 6 + 15 = 86</text>
+    <text x="650" y="68" font-size="34" fill="#a32135" font-family="cursive">86</text>
+    <text x="690" y="68" font-size="18" fill="#a32135">/100</text>
+
+    <text x="70" y="260" font-size="26" font-weight="700" fill="#111827">一、按要求规范书写下面句子。（2分）</text>
+    <text x="245" y="328" font-size="34" font-weight="700" fill="#111827">不知则问，不能则学。</text>
+    <rect x="170" y="355" width="500" height="52" fill="none" stroke="#111827" stroke-width="2"/>
+    <text x="190" y="394" font-size="32" fill="#334155" font-family="serif">不知则问，不能则学。</text>
+    <path d="M440 412 C470 470 520 360 585 312" fill="none" stroke="#b4233c" stroke-width="4"/>
+    <text x="670" y="320" font-size="44" fill="#b4233c" font-family="cursive">+2</text>
+
+    <text x="70" y="470" font-size="26" font-weight="700" fill="#111827">二、读拼音，写词语。（16分）</text>
+    <g font-size="22" fill="#111827">
+      <text x="100" y="525">qián hòu</text><text x="310" y="525">huā duǒ</text><text x="515" y="525">yīn wèi</text><text x="690" y="525">yùn dòng</text>
+    </g>
+    <g fill="none" stroke="#111827" stroke-width="2">
+      <rect x="88" y="538" width="92" height="54"/><rect x="295" y="538" width="92" height="54"/><rect x="505" y="538" width="92" height="54"/><rect x="680" y="538" width="104" height="54"/>
+      <rect x="88" y="650" width="92" height="54"/><rect x="295" y="650" width="92" height="54"/><rect x="505" y="650" width="92" height="54"/><rect x="680" y="650" width="104" height="54"/>
+    </g>
+    <g font-size="30" fill="#334155" font-family="serif">
+      <text x="95" y="576">前后</text><text x="302" y="576">花朵</text><text x="512" y="576">因为</text><text x="686" y="576">运动</text>
+      <text x="95" y="688">已经</text><text x="302" y="688">故乡</text><text x="512" y="688">声音</text><text x="686" y="688">招呼</text>
+    </g>
+    <path d="M90 590 C120 635 175 580 205 520 M300 590 C340 630 390 570 420 520 M505 590 C540 625 600 565 620 520 M680 590 C720 635 785 565 812 520" fill="none" stroke="#b4233c" stroke-width="4"/>
+    <path d="M90 704 C120 750 175 700 205 640 M300 704 C340 750 390 690 420 640 M505 704 C540 750 600 690 620 640 M680 704 C720 750 790 690 815 640" fill="none" stroke="#b4233c" stroke-width="4"/>
+    <text x="710" y="475" font-size="44" fill="#b4233c" font-family="cursive">+16</text>
+
+    <text x="70" y="765" font-size="26" font-weight="700" fill="#111827">三、在正确的答案下面画“√”。（10分）</text>
+    <g font-size="25" fill="#111827" font-family="serif">
+      <text x="88" y="820">1. 大家都觉得（de děi）学习音乐（yuè lè）很快乐。</text>
+      <text x="88" y="874">2. 农民伯伯把棉花的种（zhǒng zhòng）子种（zhòng zhǒng）到地里。</text>
+      <text x="88" y="928">3. 池塘里只（zhī zhǐ）有一只（zhī zhǐ）鸭子。</text>
+      <text x="88" y="982">4. 我多希望能（在 再）次和同学们（在 再）操场上玩。</text>
+      <text x="88" y="1036">5. 过了（清 青 晴）明节，天气越来越热了。</text>
+    </g>
+    <g stroke="#b4233c" stroke-width="4" fill="none">
+      <path d="M295 812 l20 26 l44 -60 M485 812 l20 26 l44 -60 M375 866 l20 26 l44 -60 M642 866 l20 26 l44 -60 M218 920 l20 26 l44 -60 M455 920 l20 26 l44 -60 M278 974 l20 26 l44 -60 M570 974 l20 26 l44 -60 M188 1030 l20 26 l44 -60"/>
+    </g>
+    <text x="705" y="810" font-size="44" fill="#b4233c" font-family="cursive">+10</text>
+
+    <text x="70" y="1105" font-size="26" font-weight="700" fill="#111827">四、照样子，完成练习。（10分）</text>
+    <g font-size="28" fill="#334155" font-family="serif">
+      <text x="205" y="1160">运（运动）</text><text x="520" y="1160">过（过去）</text>
+      <text x="205" y="1210">拍（拍手）</text><text x="520" y="1210">打（打开）</text>
+    </g>
+    <path d="M360 1160 C390 1205 445 1140 480 1100 M670 1160 C700 1205 760 1140 795 1100" fill="none" stroke="#b4233c" stroke-width="4"/>
+    <text x="705" y="1118" font-size="44" fill="#b4233c" font-family="cursive">+10</text>
+  </g>
+</svg>

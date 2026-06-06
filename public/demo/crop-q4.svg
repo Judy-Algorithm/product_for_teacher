@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="360" viewBox="0 0 900 360">
+  <rect width="900" height="360" fill="#f8fafc"/>
+  <text x="46" y="58" font-size="28" font-weight="700" fill="#111827">四、照样子，完成练习。（10分）</text>
+  <g font-size="34" fill="#334155" font-family="serif">
+    <text x="220" y="130">运（运动）</text><text x="548" y="130">过（过去）</text>
+    <text x="220" y="205">拍（拍手）</text><text x="548" y="205">打（打开）</text>
+    <text x="220" y="280">村（村庄）</text><text x="548" y="280">树（树木）</text>
+  </g>
+  <path d="M370 132 C405 180 462 105 500 58 M698 132 C735 180 795 105 835 58 M370 207 C405 255 462 180 500 133 M698 207 C735 255 795 180 835 133" fill="none" stroke="#b4233c" stroke-width="5"/>
+  <text x="735" y="70" font-size="54" fill="#b4233c" font-family="cursive">+10</text>
+</svg>
