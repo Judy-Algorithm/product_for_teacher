@@ -30,12 +30,17 @@ class QuestionCrop:
     crop_path: str
 
 
-QUESTION_TEMPLATES = [
+FALLBACK_QUESTION_TEMPLATES = [
     ("q1", "第一题", "copy_sentence", (0.08, 0.19, 0.86, 0.16)),
     ("q2", "第二题", "word", (0.08, 0.34, 0.86, 0.20)),
     ("q3", "第三题", "choice", (0.08, 0.52, 0.86, 0.22)),
     ("q4", "第四题", "word_building", (0.08, 0.73, 0.86, 0.18)),
 ]
+
+
+def question_label(index: int) -> str:
+    labels = ["第一题", "第二题", "第三题", "第四题", "第五题", "第六题", "第七题", "第八题", "第九题", "第十题"]
+    return labels[index] if index < len(labels) else f"第{index + 1}题"
 
 
 def download_image(url: str, output_path: str) -> str:
@@ -93,12 +98,83 @@ def correct_perspective(image: np.ndarray) -> tuple[np.ndarray, CropBox]:
     return image, CropBox(0, 0, width, height, 0.4)
 
 
-def crop_questions(corrected: np.ndarray, output_dir: str) -> list[QuestionCrop]:
+def detect_question_boxes(corrected: np.ndarray) -> list[CropBox]:
+    gray = cv2.cvtColor(corrected, cv2.COLOR_BGR2GRAY)
+    threshold = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 31, 12)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (35, 9))
+    merged = cv2.dilate(threshold, kernel, iterations=2)
+    contours, _ = cv2.findContours(merged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    height, width = corrected.shape[:2]
+    min_area = width * height * 0.012
+    max_area = width * height * 0.45
+    candidates: list[CropBox] = []
+
+    for contour in contours:
+        x, y, w, h = cv2.boundingRect(contour)
+        area = w * h
+        if area < min_area or area > max_area:
+            continue
+        if w < width * 0.35 or h < height * 0.045:
+            continue
+        if y < height * 0.08:
+            continue
+
+        pad_x = int(width * 0.025)
+        pad_y = int(height * 0.015)
+        x1 = max(0, x - pad_x)
+        y1 = max(0, y - pad_y)
+        x2 = min(width, x + w + pad_x)
+        y2 = min(height, y + h + pad_y)
+        candidates.append(CropBox(x=x1, y=y1, width=x2 - x1, height=y2 - y1, confidence=0.72))
+
+    candidates.sort(key=lambda box: (box.y, box.x))
+    merged_boxes: list[CropBox] = []
+
+    for box in candidates:
+        if not merged_boxes:
+            merged_boxes.append(box)
+            continue
+
+        previous = merged_boxes[-1]
+        overlap_y = min(previous.y + previous.height, box.y + box.height) - max(previous.y, box.y)
+        if overlap_y > min(previous.height, box.height) * 0.35:
+            x1 = min(previous.x, box.x)
+            y1 = min(previous.y, box.y)
+            x2 = max(previous.x + previous.width, box.x + box.width)
+            y2 = max(previous.y + previous.height, box.y + box.height)
+            merged_boxes[-1] = CropBox(x=x1, y=y1, width=x2 - x1, height=y2 - y1, confidence=0.68)
+        else:
+            merged_boxes.append(box)
+
+    return merged_boxes
+
+
+def crop_detected_questions(corrected: np.ndarray, output_dir: str, boxes: list[CropBox]) -> list[QuestionCrop]:
+    crops: list[QuestionCrop] = []
+
+    for index, box in enumerate(boxes):
+        crop = corrected[box.y : box.y + box.height, box.x : box.x + box.width]
+        crop_path = str(Path(output_dir) / f"q{index + 1}.jpg")
+        cv2.imwrite(crop_path, crop)
+        crops.append(
+            QuestionCrop(
+                question_id=f"q{index + 1}",
+                label=question_label(index),
+                question_type="short_answer",
+                box=box,
+                crop_path=crop_path,
+            )
+        )
+
+    return crops
+
+
+def crop_fallback_template_questions(corrected: np.ndarray, output_dir: str) -> list[QuestionCrop]:
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     height, width = corrected.shape[:2]
     crops: list[QuestionCrop] = []
 
-    for question_id, label, question_type, ratio in QUESTION_TEMPLATES:
+    for question_id, label, question_type, ratio in FALLBACK_QUESTION_TEMPLATES:
         rx, ry, rw, rh = ratio
         x = int(rx * width)
         y = int(ry * height)
@@ -118,6 +194,14 @@ def crop_questions(corrected: np.ndarray, output_dir: str) -> list[QuestionCrop]
         )
 
     return crops
+
+
+def crop_questions(corrected: np.ndarray, output_dir: str) -> list[QuestionCrop]:
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    boxes = detect_question_boxes(corrected)
+    if boxes:
+        return crop_detected_questions(corrected, output_dir, boxes)
+    return crop_fallback_template_questions(corrected, output_dir)
 
 
 def route_question(question_type: str, ocr_confidence: float) -> Route:
