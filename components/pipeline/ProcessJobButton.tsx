@@ -17,7 +17,13 @@ export function ProcessJobButton({ jobId }: ProcessJobButtonProps) {
 
     try {
       const response = await fetch(`/api/jobs/${jobId}/process`, { method: "POST" });
-      const data = (await response.json()) as { ok: boolean; error?: string };
+      const responseText = await response.text();
+      let data: { ok?: boolean; error?: string } = {};
+      try {
+        data = responseText ? (JSON.parse(responseText) as { ok?: boolean; error?: string }) : {};
+      } catch {
+        data = { ok: false, error: responseText || `启动失败：${response.status}` };
+      }
 
       if (!response.ok || !data.ok) {
         throw new Error(data.error ?? "启动失败");

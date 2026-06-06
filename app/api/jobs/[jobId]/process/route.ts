@@ -19,7 +19,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
 
   await updateJobStatus(job.id, "processing");
 
-  const response = await fetch(`${workerUrl.replace(/\/$/, "")}/process`, {
+  const response = await fetch(`${workerUrl.replace(/\/$/, "")}/process-async`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
