@@ -31,3 +31,33 @@ Production requirements:
 - Store the image in Vercel Blob or S3-compatible object storage.
 - Queue a Python processing job after upload.
 - Persist job state in Postgres instead of memory.
+
+## Local Browser Upload API
+
+## POST `/api/uploads/paper`
+
+The teacher web UI uses this endpoint when a teacher chooses a paper image from their computer.
+
+Request:
+
+```text
+multipart/form-data
+file: image/png or image/jpeg, max 10MB
+```
+
+Response:
+
+```json
+{
+  "ok": true,
+  "imageUrl": "https://...",
+  "fileName": "student-paper.png",
+  "fileSize": 305377,
+  "storage": "vercel-blob"
+}
+```
+
+Deployment notes:
+
+- Configure `BLOB_READ_WRITE_TOKEN` in Vercel to store uploads in Vercel Blob.
+- Without `BLOB_READ_WRITE_TOKEN`, local development returns a base64 inline preview URL. This is only for demos and should not be used for production storage.

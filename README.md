@@ -6,6 +6,7 @@ Vercel-ready demo for a teacher-facing AI grading workflow.
 
 ```bash
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
@@ -27,7 +28,23 @@ POST /api/hardware/upload
 
 See `docs/architecture/hardware-api.md` for the payload.
 
+## Backend API
+
+This project uses Next.js Route Handlers as a lightweight backend on Vercel:
+
+- `POST /api/uploads/paper`: accepts a local image file from the browser. In production, configure `BLOB_READ_WRITE_TOKEN` to store files in Vercel Blob. Without it, local development returns an inline preview URL.
+- `POST /api/grade`: calls Kimi from the server using `KIMI_API_KEY`.
+- `POST /api/hardware/upload`: receives image metadata from a hardware partner.
+- `POST /api/worker/callback`: receives crop/OCR results from the Python worker.
+
+Vercel environment variables:
+
+```text
+KIMI_API_KEY=your_kimi_key
+KIMI_MODEL=moonshot-v1-8k
+BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
+```
+
 ## Processing Boundary
 
 Vercel handles the web UI, upload endpoint, job state, and callback endpoint. Expensive crop and OCR work should run in the Python worker described in `workers/python/README.md`.
-
