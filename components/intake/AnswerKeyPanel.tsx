@@ -1,28 +1,14 @@
-import Image from "next/image";
-import type { GradingJob } from "@/lib/types";
+import { ImageUploadPanel } from "./ImageUploadPanel";
 
-export function AnswerKeyPanel({ job }: { job: GradingJob }) {
-  const visibleScore = job.rubrics.reduce((sum, rubric) => sum + rubric.fullScore, 0);
-
+export function AnswerKeyPanel() {
   return (
-    <aside className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">答案与评分标准</h2>
-          <p className="text-sm text-neutral-600">当前图片覆盖第 1-4 题，共 {visibleScore} 分。</p>
-        </div>
-      </div>
-      <div className="relative aspect-[16/23] overflow-hidden rounded-md border border-neutral-200 bg-white">
-        <Image src={job.answerSheetUrl} alt="答案评分标准" fill className="object-contain" />
-      </div>
-      <div className="mt-4 space-y-2">
-        {job.rubrics.map((rubric) => (
-          <div key={rubric.questionId} className="flex items-center justify-between rounded-md border border-neutral-200 px-3 py-2 text-sm">
-            <span className="font-medium">{rubric.label}</span>
-            <span className="text-neutral-600">{rubric.fullScore} 分</span>
-          </div>
-        ))}
-      </div>
-    </aside>
+    <ImageUploadPanel
+      title="上传答案与评分标准"
+      description="从本地选择答案、评分细则或评分标准图片。"
+      alt="答案与评分标准图片"
+      buttonLabel="选择答案与评分标准图片"
+      emptyLabel="上传答案与评分标准图片"
+      aspectClassName="aspect-[16/23]"
+    />
   );
 }
