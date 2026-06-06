@@ -130,3 +130,36 @@ export async function getJobFromDatabase(jobId: string): Promise<GradingJob | nu
     calibrationNotes: row.calibration_notes
   };
 }
+
+export async function updateJobStatus(jobId: string, status: GradingJob["status"]) {
+  await ensureJobsSchema();
+
+  const sql = getSql();
+  await sql`
+    UPDATE grading_jobs
+    SET status = ${status}, updated_at = NOW()
+    WHERE id = ${jobId}
+  `;
+}
+
+export async function updateJobResults(
+  jobId: string,
+  payload: {
+    status: GradingJob["status"];
+    results: GradingJob["results"];
+    correctedSheetUrl?: string;
+  }
+) {
+  await ensureJobsSchema();
+
+  const sql = getSql();
+  await sql`
+    UPDATE grading_jobs
+    SET
+      status = ${payload.status},
+      results = ${JSON.stringify(payload.results)}::jsonb,
+      corrected_sheet_url = ${payload.correctedSheetUrl ?? null},
+      updated_at = NOW()
+    WHERE id = ${jobId}
+  `;
+}
