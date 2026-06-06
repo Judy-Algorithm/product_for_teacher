@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowLeft, FileCheck2 } from "lucide-react";
+import { shouldPollJob } from "@/lib/jobs/processing-state";
 import type { GradingJob } from "@/lib/types";
 import { GradingPanel } from "./GradingPanel";
 import { ProcessJobButton } from "./ProcessJobButton";
@@ -29,7 +30,7 @@ export function QuestionReview({ job }: { job: GradingJob }) {
             <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
               <h2 className="text-lg font-semibold">任务已创建</h2>
               <p className="mt-1 text-sm text-neutral-600">学生试卷和评分标准已经保存，下一步会交给 Python worker 做裁切和 OCR。</p>
-              <ProcessJobButton jobId={job.id} />
+              <ProcessJobButton jobId={job.id} shouldPoll={shouldPollJob(job)} />
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div>
                   <div className="mb-2 text-sm font-medium text-neutral-700">学生试卷</div>

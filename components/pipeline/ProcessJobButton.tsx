@@ -1,15 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Loader2, ScanLine } from "lucide-react";
 
 interface ProcessJobButtonProps {
   jobId: string;
+  shouldPoll: boolean;
 }
 
-export function ProcessJobButton({ jobId }: ProcessJobButtonProps) {
+export function ProcessJobButton({ jobId, shouldPoll }: ProcessJobButtonProps) {
+  const router = useRouter();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [status, setStatus] = useState("");
+  const [isPolling, setIsPolling] = useState(shouldPoll);
+  const [status, setStatus] = useState(shouldPoll ? "正在等待 OCR 结果..." : "");
+
+  useEffect(() => {
+    if (!shouldPoll && !isPolling) return;
+
+    const interval = window.setInterval(() => {
+      router.refresh();
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [isPolling, router, shouldPoll]);
 
   async function startProcessing() {
     setIsProcessing(true);
@@ -30,7 +44,9 @@ export function ProcessJobButton({ jobId }: ProcessJobButtonProps) {
         throw new Error(data.error ?? "启动失败");
       }
 
-      setStatus("worker 已启动，稍后刷新页面查看 OCR 结果。");
+      setStatus("worker 已启动，正在等待 OCR 结果...");
+      setIsPolling(true);
+      router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "启动失败";
       setStatus(message);
