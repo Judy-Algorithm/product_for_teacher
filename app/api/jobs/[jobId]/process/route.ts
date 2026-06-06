@@ -25,6 +25,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
       return NextResponse.json({ ok: false, error: "Job not found" }, { status: 404 });
     }
 
+    if (job.studentSheetUrl.startsWith("data:") || job.answerSheetUrl.startsWith("data:")) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "当前图片是本地内联预览，远程 Python worker 无法下载。请配置 BLOB_READ_WRITE_TOKEN 后重新上传图片。"
+        },
+        { status: 400 }
+      );
+    }
+
     await updateJobStatus(job.id, "processing");
 
     const response = await fetch(`${workerUrl}/process-async`, {
