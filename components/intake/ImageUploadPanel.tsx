@@ -1,17 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { upload } from "@vercel/blob/client";
 import { ChangeEvent, ReactNode, useRef, useState } from "react";
 import { CheckCircle2, ImagePlus, Loader2, Upload } from "lucide-react";
-
-interface UploadResponse {
-  ok: boolean;
-  imageUrl?: string;
-  fileName?: string;
-  storage?: string;
-  warning?: string;
-  error?: string;
-}
 
 interface ImageUploadPanelProps {
   title: string;
@@ -41,6 +33,10 @@ export function ImageUploadPanel({
   const [uploadStatus, setUploadStatus] = useState("");
   const [isUploading, setIsUploading] = useState(false);
 
+  function safeFileName(name: string) {
+    return name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(0, 80) || "paper-image";
+  }
+
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -48,23 +44,15 @@ export function ImageUploadPanel({
     setIsUploading(true);
     setUploadStatus("正在上传图片...");
 
-    const formData = new FormData();
-    formData.append("file", file);
-
     try {
-      const response = await fetch("/api/uploads/paper", {
-        method: "POST",
-        body: formData
+      const blob = await upload(`papers/${Date.now()}-${safeFileName(file.name)}`, file, {
+        access: "public",
+        handleUploadUrl: "/api/uploads/client"
       });
-      const data = (await response.json()) as UploadResponse;
 
-      if (!response.ok || !data.ok || !data.imageUrl) {
-        throw new Error(data.error ?? "上传失败");
-      }
-
-      setImageSrc(data.imageUrl);
-      setUploadStatus(`${data.fileName ?? "图片"} 已上传，存储：${data.storage ?? "backend"}`);
-      onUploaded?.(data.imageUrl);
+      setImageSrc(blob.url);
+      setUploadStatus(`${file.name} 已上传，存储：vercel-blob`);
+      onUploaded?.(blob.url);
     } catch (error) {
       const message = error instanceof Error ? error.message : "上传失败";
       setUploadStatus(message);
