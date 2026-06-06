@@ -27,7 +27,7 @@ export function ProcessJobButton({ jobId, shouldPoll }: ProcessJobButtonProps) {
 
   async function startProcessing() {
     setIsProcessing(true);
-    setStatus("正在启动 Python worker...");
+    setStatus("正在裁切和 OCR，通常需要 1-3 分钟，请先不要关闭页面...");
 
     try {
       const response = await fetch(`/api/jobs/${jobId}/process`, { method: "POST" });
@@ -44,7 +44,7 @@ export function ProcessJobButton({ jobId, shouldPoll }: ProcessJobButtonProps) {
         throw new Error(data.error ?? "启动失败");
       }
 
-      setStatus("worker 已启动，正在等待 OCR 结果...");
+      setStatus("OCR 完成，正在刷新结果...");
       setIsPolling(true);
       router.refresh();
     } catch (error) {

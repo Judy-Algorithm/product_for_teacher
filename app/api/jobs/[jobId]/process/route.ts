@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getJobFromDatabase, updateJobStatus } from "@/lib/jobs/repository";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 300;
 
 function normalizeWorkerUrl(workerUrl: string) {
   return workerUrl.trim().replace(/^["']|["']$/g, "").replace(/\/$/, "");
@@ -37,7 +37,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
 
     await updateJobStatus(job.id, "processing");
 
-    const response = await fetch(`${workerUrl}/process-async`, {
+    const response = await fetch(`${workerUrl}/process`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -52,13 +52,21 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
       })
     });
 
+    const workerResponseText = await response.text();
+
     if (!response.ok) {
-      const errorText = await response.text();
       await updateJobStatus(job.id, "failed");
-      return NextResponse.json({ ok: false, error: `Worker failed: ${response.status} ${errorText}` }, { status: 502 });
+      return NextResponse.json({ ok: false, error: `Worker failed: ${response.status} ${workerResponseText}` }, { status: 502 });
     }
 
-    return NextResponse.json({ ok: true, status: "processing" });
+    let workerResult: { status?: string } = {};
+    try {
+      workerResult = workerResponseText ? (JSON.parse(workerResponseText) as { status?: string }) : {};
+    } catch {
+      workerResult = {};
+    }
+
+    return NextResponse.json({ ok: true, status: workerResult.status ?? "needs_review" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown worker startup error";
     if (jobId) {
