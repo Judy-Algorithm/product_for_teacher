@@ -7,6 +7,7 @@ import type { GradingJob } from "@/lib/types";
 import { GradingPanel } from "./GradingPanel";
 import { ProcessJobButton } from "./ProcessJobButton";
 import { QuestionCropPanel } from "./QuestionCropPanel";
+import { RubricEditor } from "./RubricEditor";
 
 export function QuestionReview({ job }: { job: GradingJob }) {
   return (
@@ -29,7 +30,10 @@ export function QuestionReview({ job }: { job: GradingJob }) {
             <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
               <h2 className="text-lg font-semibold">任务已创建</h2>
               <p className="mt-1 text-sm text-neutral-600">学生试卷和评分标准已经保存，下一步会交给 Python worker 做裁切和 OCR。</p>
-              <ProcessJobButton jobId={job.id} shouldPoll={shouldPollJob(job)} />
+              <RubricEditor jobId={job.id} />
+              <div className="mt-4 border-t border-neutral-200 pt-4">
+                <ProcessJobButton jobId={job.id} shouldPoll={shouldPollJob(job)} />
+              </div>
               <div className="mt-4 grid gap-4 lg:grid-cols-2">
                 <div>
                   <div className="mb-2 text-sm font-medium text-neutral-700">学生试卷</div>
@@ -51,7 +55,7 @@ export function QuestionReview({ job }: { job: GradingJob }) {
             return (
               <section key={result.questionId} className="grid gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm lg:grid-cols-[1fr_420px]">
                 <QuestionCropPanel result={result} rubric={rubric} />
-                <GradingPanel result={result} rubric={rubric} />
+                <GradingPanel result={result} rubric={rubric} jobId={job.id} />
               </section>
             );
           })}
