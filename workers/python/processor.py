@@ -314,7 +314,6 @@ def run_ocr_layout(image_path: str, ocr_engine) -> list[OcrTextBox]:
 
 
 def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: int, page_height: int) -> list[QuestionAnchor]:
-    anchors_by_number: dict[int, QuestionAnchor] = {}
     # Skip the very top of the page — exam titles ("一年级下册语文期末测试卷") often
     # contain Chinese numerals too. Keep this modest: question 1 can legitimately start
     # quite high (right below a one-line score table), so an aggressive threshold here
@@ -323,14 +322,17 @@ def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: 
     min_y = int(page_height * 0.10)
     max_x = int(page_width * 0.55)
 
+    # Pass 1: collect every line that *could* be a question-header anchor, tagged
+    # with whether its number came from a Chinese or an Arabic numeral.
+    candidates: list[tuple[int, bool, OcrTextBox]] = []
     for text_box in ocr_boxes:
         if text_box.y < min_y or text_box.x > max_x:
             continue
 
-        candidate = parse_question_anchor_candidate(text_box.text)
-        if candidate is None:
+        parsed = parse_question_anchor_candidate(text_box.text)
+        if parsed is None:
             continue
-        number, is_chinese = candidate
+        number, is_chinese = parsed
 
         # Genuine question headers carry descriptive text after "一、" — e.g.
         # "一、按要求规范书写下面句子。". Score-table cells / handwritten number
@@ -341,19 +343,27 @@ def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: 
         if len(remainder) < 2:
             continue
 
+        candidates.append((number, is_chinese, text_box))
+
+    # Pass 2: these exam sheets number top-level questions with Chinese numerals
+    # ("一、二、三、四、五…") exclusively — Arabic-numeral prefixes ("1." "5.") only
+    # ever show up as sub-item bullets *inside* a question (e.g. "5.过了（青/晴）
+    # 明节…" is item 5 of 题三, "5.村(村庄)" is one of 题四's fill-in blanks). If we
+    # see ANY Chinese-numeral candidate on the page, that's proof this sheet
+    # follows that convention — so we drop Arabic-numeral candidates entirely
+    # rather than letting a stray "5." spawn a *phantom* question (a "第五题"
+    # that doesn't exist on a 4-question page, carving a sliver crop out of the
+    # boundary between the real 题三 and 题四 and feeding Kimi garbage).
+    has_chinese_anchor = any(is_chinese for _, is_chinese, _ in candidates)
+
+    anchors_by_number: dict[int, QuestionAnchor] = {}
+    for number, is_chinese, text_box in candidates:
+        if has_chinese_anchor and not is_chinese:
+            continue
+
         current = anchors_by_number.get(number)
-        if current:
-            # Chinese-numeral headers ("五、…") always win over Arabic-numeral
-            # candidates ("5.…") for the same number — the latter are almost
-            # always sub-item bullets *inside* another question (e.g. "5.过了
-            # （青/晴）明节…" inside question 三), and letting one override the
-            # real "五、" header drags that question's crop into the wrong region.
-            if current.is_chinese_numeral and not is_chinese:
-                continue
-            if is_chinese and not current.is_chinese_numeral:
-                pass  # real header found — replace the false sub-item anchor below
-            elif current.box.confidence >= text_box.confidence:
-                continue
+        if current and current.box.confidence >= text_box.confidence:
+            continue
 
         question_id = f"q{number}"
         anchors_by_number[number] = QuestionAnchor(
@@ -642,7 +652,52 @@ def run_ocr(crop_path: str, ocr_engine=None) -> tuple[str, float]:
     return "；".join(texts), sum(confidences) / len(confidences)
 
 
-def build_crop_url(public_worker_url: str, job_id: str, crop_path: str, subdir: str = "") -> str:
+def upload_crop_to_gcs(bucket_name: str, job_id: str, crop_path: str, subdir: str = "") -> str | None:
+    """Upload a crop file to a public GCS bucket and return its durable public URL.
+
+    Cloud Run instances only have ephemeral local disk: crops written to
+    `/tmp/worker-crops` by one request can vanish before a *later* request for
+    the very same job is served — the instance that wrote them gets recycled,
+    redeployed over, or autoscaled away (this churn got dramatically worse once
+    `containerConcurrency` was lowered to 1, since each job now tends to land on
+    its own instance). `build_crop_url()` used to hand back a URL pointing at
+    `{public_worker_url}/crops/...`, i.e. "ask whichever instance is alive right
+    now for a file that may only have ever existed on a *different* instance" —
+    which is exactly why some questions' crop images 404 in the UI while others
+    (served by an instance that still happens to have the file) work fine.
+    Uploading to GCS gives every crop one stable URL that survives all of that.
+    """
+    try:
+        from google.cloud import storage  # local import: keeps this optional for tests/local runs
+
+        client = storage.Client()
+        bucket = client.bucket(bucket_name)
+        filename = Path(crop_path).name
+        prefix = f"{job_id}/{subdir}" if subdir else job_id
+        blob_name = f"crops/{prefix}/{filename}"
+        blob = bucket.blob(blob_name)
+        blob.cache_control = "public, max-age=31536000, immutable"
+        blob.upload_from_filename(crop_path, content_type="image/jpeg")
+        return f"https://storage.googleapis.com/{bucket_name}/{blob_name}"
+    except Exception as exc:  # noqa: BLE001 - never let a storage hiccup break OCR/grading
+        print(f"[crops] GCS upload failed for {crop_path} (bucket={bucket_name}): {exc}")
+        return None
+
+
+def build_crop_url(
+    public_worker_url: str,
+    job_id: str,
+    crop_path: str,
+    subdir: str = "",
+    gcs_bucket: str = "",
+) -> str:
+    if gcs_bucket:
+        uploaded_url = upload_crop_to_gcs(gcs_bucket, job_id, crop_path, subdir=subdir)
+        if uploaded_url:
+            return uploaded_url
+        # Fall through to the worker-URL/inline strategies below if the GCS
+        # upload fails for any reason — better a possibly-ephemeral URL than none.
+
     filename = Path(crop_path).name
     if public_worker_url:
         prefix = f"{job_id}/{subdir}" if subdir else job_id
@@ -659,6 +714,7 @@ def _crop_and_recognize(
     subdir: str,
     public_worker_url: str,
     ocr_engine,
+    gcs_bucket: str = "",
 ) -> tuple[list[dict], str]:
     """Run perspective correction + per-question cropping + OCR on a single sheet image.
 
@@ -687,7 +743,7 @@ def _crop_and_recognize(
                 "questionId": crop.question_id,
                 "label": crop.label,
                 "questionType": crop.question_type,
-                "cropUrl": build_crop_url(public_worker_url, job_id, crop.crop_path, subdir=subdir),
+                "cropUrl": build_crop_url(public_worker_url, job_id, crop.crop_path, subdir=subdir, gcs_bucket=gcs_bucket),
                 "box": asdict(crop.box),
                 "recognizedAnswer": recognized_answer,
                 "ocrConfidence": confidence,
@@ -695,7 +751,7 @@ def _crop_and_recognize(
             }
         )
 
-    return entries, build_crop_url(public_worker_url, job_id, corrected_path, subdir=subdir)
+    return entries, build_crop_url(public_worker_url, job_id, corrected_path, subdir=subdir, gcs_bucket=gcs_bucket)
 
 
 def process_job(
@@ -704,10 +760,14 @@ def process_job(
     public_worker_url: str = "",
     ocr_engine=None,
     answer_sheet_path: str | None = None,
+    gcs_bucket: str = "",
 ) -> dict:
     engine = ocr_engine or get_ocr_engine()
+    gcs_bucket = gcs_bucket or os.environ.get("CROPS_GCS_BUCKET", "")
 
-    student_entries, corrected_url = _crop_and_recognize(image_path, job_id, "student", public_worker_url, engine)
+    student_entries, corrected_url = _crop_and_recognize(
+        image_path, job_id, "student", public_worker_url, engine, gcs_bucket=gcs_bucket
+    )
 
     results = []
     for entry in student_entries:
@@ -736,7 +796,7 @@ def process_job(
     if answer_sheet_path:
         try:
             answer_entries, _answer_corrected_url = _crop_and_recognize(
-                answer_sheet_path, job_id, "answer", public_worker_url, engine
+                answer_sheet_path, job_id, "answer", public_worker_url, engine, gcs_bucket=gcs_bucket
             )
             answer_key = [
                 {
