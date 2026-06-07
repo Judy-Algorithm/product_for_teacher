@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Check, Loader2, Pencil, X } from "lucide-react";
-import type { QuestionResult, QuestionRubric } from "@/lib/types";
+import { ERROR_TYPES, type ErrorType, type QuestionResult, type QuestionRubric } from "@/lib/types";
 import { TechnicalDetails } from "./TechnicalDetails";
 
 export function GradingPanel({
@@ -18,6 +18,8 @@ export function GradingPanel({
   const [reason, setReason] = useState(result.reason);
   const [draftScore, setDraftScore] = useState(result.score);
   const [draftReason, setDraftReason] = useState(result.reason);
+  const [errorType, setErrorType] = useState<ErrorType | undefined>(result.errorType);
+  const [draftErrorType, setDraftErrorType] = useState<ErrorType | "">(result.errorType ?? "");
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -26,6 +28,7 @@ export function GradingPanel({
   function startEditing() {
     setDraftScore(score);
     setDraftReason(reason);
+    setDraftErrorType(errorType ?? "");
     setSaveError("");
     setIsEditing(true);
   }
@@ -41,11 +44,13 @@ export function GradingPanel({
           questionId: result.questionId,
           score: draftScore,
           reason: draftReason,
+          errorType: draftErrorType || undefined,
         }),
       });
       if (!res.ok) throw new Error("保存失败");
       setScore(draftScore);
       setReason(draftReason);
+      setErrorType(draftErrorType || undefined);
       setReviewStatus("teacher_modified");
       setIsEditing(false);
     } catch {
@@ -94,6 +99,11 @@ export function GradingPanel({
           <div className="rounded-md bg-neutral-100 p-3">
             <div className="text-neutral-600">原因</div>
             <p className="mt-1 leading-7">{reason}</p>
+            {errorType && errorType !== "无错误" ? (
+              <p className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                判错原因：{errorType}
+              </p>
+            ) : null}
           </div>
         </div>
         {isEditing ? (
@@ -118,6 +128,22 @@ export function GradingPanel({
                 value={draftReason}
                 onChange={(e) => setDraftReason(e.target.value)}
               />
+            </label>
+            <label className="block">
+              <span className="text-blue-900">标记 AI 判错原因（用于错题统计与后续校准）</span>
+              <select
+                aria-label={`${rubric.label} 标记判错原因`}
+                className="mt-2 w-full rounded-md border border-blue-200 bg-white p-2 outline-none focus:border-blue-500"
+                value={draftErrorType}
+                onChange={(e) => setDraftErrorType(e.target.value as ErrorType | "")}
+              >
+                <option value="">不标记</option>
+                {ERROR_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
+              </select>
             </label>
             {saveError ? <p className="text-sm text-red-600">{saveError}</p> : null}
             <div className="grid grid-cols-2 gap-2">
