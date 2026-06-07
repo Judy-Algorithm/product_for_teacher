@@ -58,7 +58,9 @@ class FallbackTemplateTests(unittest.TestCase):
         page = np.full((1600, 1000, 3), 255, dtype=np.uint8)
         crops = crop_fallback_template_questions(page, "/tmp/teacher-grading-test-crops")
 
-        self.assertEqual(len(crops), 4)
+        # _make_fallback_templates(12) evenly distributes 12 question slots below
+        # the header block — see processor.FALLBACK_QUESTION_TEMPLATES.
+        self.assertEqual(len(crops), 12)
         self.assertLess(crops[0].box.confidence, 0.6)
 
 

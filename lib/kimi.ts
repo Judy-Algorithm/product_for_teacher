@@ -96,6 +96,40 @@ type VisionContentPart =
   | { type: "image_url"; image_url: { url: string } }
   | { type: "text"; text: string };
 
+const dataUrlCache = new Map<string, Promise<string>>();
+
+/**
+ * Moonshot's vision endpoint rejects some remote URLs outright with
+ * `invalid_request_error: unsupported image url: https://...vercel-storage.com/...`
+ * (it appears to allowlist image hosts rather than fetching arbitrary URLs). The
+ * robust fix used by most vision-LLM integrations is to inline the image as a
+ * `data:` URI instead of relying on the provider to fetch a remote URL. We fetch the
+ * image ourselves and convert it; if that fails for any reason we fall back to the
+ * original URL so we at least try.
+ */
+async function toInlineImageUrl(url: string): Promise<string> {
+  if (url.startsWith("data:")) return url;
+
+  const cached = dataUrlCache.get(url);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return url;
+      const arrayBuffer = await response.arrayBuffer();
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      const base64 = Buffer.from(arrayBuffer).toString("base64");
+      return `data:${contentType};base64,${base64}`;
+    } catch {
+      return url;
+    }
+  })();
+
+  dataUrlCache.set(url, promise);
+  return promise;
+}
+
 export async function gradeWithKimiVision(input: KimiVisionGradeInput): Promise<KimiVisionGradeResult> {
   const apiKey = process.env.KIMI_API_KEY;
   if (!apiKey) {
@@ -104,13 +138,18 @@ export async function gradeWithKimiVision(input: KimiVisionGradeInput): Promise<
 
   const visionModel = process.env.KIMI_VISION_MODEL ?? "moonshot-v1-8k-vision-preview";
 
+  // Inline remote URLs as base64 data: URIs — Moonshot rejects some external hosts
+  // (e.g. Vercel Blob) with "unsupported image url" if we pass the URL directly.
+  const answerSheetImageUrl = await toInlineImageUrl(input.answerSheetUrl);
+
   const content: VisionContentPart[] = [
-    { type: "image_url", image_url: { url: input.answerSheetUrl } }
+    { type: "image_url", image_url: { url: answerSheetImageUrl } }
   ];
 
-  const hasCrop = input.cropUrl && !input.cropUrl.startsWith("data:");
+  const hasCrop = Boolean(input.cropUrl);
   if (hasCrop) {
-    content.push({ type: "image_url", image_url: { url: input.cropUrl! } });
+    const cropImageUrl = await toInlineImageUrl(input.cropUrl!);
+    content.push({ type: "image_url", image_url: { url: cropImageUrl } });
   }
 
   const answerHint = input.recognizedAnswer.trim()

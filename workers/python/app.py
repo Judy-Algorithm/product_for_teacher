@@ -43,7 +43,12 @@ def callback_result(request: ProcessRequest, result: dict) -> None:
 def process_and_callback(request: ProcessRequest) -> None:
     try:
         public_worker_url = os.getenv("WORKER_PUBLIC_URL", "")
-        result = process_remote_job(request.jobId, str(request.studentSheetUrl), public_worker_url=public_worker_url)
+        result = process_remote_job(
+            request.jobId,
+            str(request.studentSheetUrl),
+            answer_sheet_url=str(request.answerSheetUrl) if request.answerSheetUrl else None,
+            public_worker_url=public_worker_url,
+        )
     except Exception as error:
         result = {
             "jobId": request.jobId,
@@ -63,7 +68,12 @@ def process(request: ProcessRequest, x_worker_secret: str = Header(default="")):
         raise HTTPException(status_code=401, detail="Invalid worker secret")
 
     public_worker_url = os.getenv("WORKER_PUBLIC_URL", "")
-    result = process_remote_job(request.jobId, str(request.studentSheetUrl), public_worker_url=public_worker_url)
+    result = process_remote_job(
+        request.jobId,
+        str(request.studentSheetUrl),
+        answer_sheet_url=str(request.answerSheetUrl) if request.answerSheetUrl else None,
+        public_worker_url=public_worker_url,
+    )
 
     callback_url = str(request.callbackUrl) if request.callbackUrl else os.getenv("WORKER_CALLBACK_URL", "")
     if callback_url:

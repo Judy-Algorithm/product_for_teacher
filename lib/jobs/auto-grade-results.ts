@@ -54,11 +54,10 @@ export async function autoGradeResults(
         // No rubric stored → fall back to Kimi Vision using the answer sheet image.
         if (hasPublicAnswerSheet) {
           try {
-            const cropUrl = result.cropUrl?.startsWith("data:") ? undefined : result.cropUrl;
             const visionResult = await gradeWithKimiVision({
               questionLabel: questionIdToLabel(result.questionId),
               answerSheetUrl: job.answerSheetUrl!,
-              cropUrl,
+              cropUrl: result.cropUrl,
               recognizedAnswer: result.recognizedAnswer
             });
             return applyKimiResult(result, visionResult, visionResult.fullScore);

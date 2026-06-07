@@ -148,11 +148,27 @@ export async function updateJobResults(
     status: GradingJob["status"];
     results: GradingJob["results"];
     correctedSheetUrl?: string;
+    /** Optionally persist rubrics auto-derived from OCR'ing the answer-key sheet. */
+    rubrics?: GradingJob["rubrics"];
   }
 ) {
   await ensureJobsSchema();
 
   const sql = getSql();
+  if (payload.rubrics) {
+    await sql`
+      UPDATE grading_jobs
+      SET
+        status = ${payload.status},
+        results = ${JSON.stringify(payload.results)}::jsonb,
+        rubrics = ${JSON.stringify(payload.rubrics)}::jsonb,
+        corrected_sheet_url = ${payload.correctedSheetUrl ?? null},
+        updated_at = NOW()
+      WHERE id = ${jobId}
+    `;
+    return;
+  }
+
   await sql`
     UPDATE grading_jobs
     SET

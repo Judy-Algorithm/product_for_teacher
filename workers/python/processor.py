@@ -121,6 +121,9 @@ def normalize_ocr_text(text: str) -> str:
     return re.sub(r"\s+", "", text).replace("．", ".").replace("，", "、")
 
 
+_QUESTION_PREFIX_RE = re.compile(r"^[（(]?(?:十[一二三四五六七八九]|[一二三四五六七八九十]|\d{1,2})[）)]?[、，,.]")
+
+
 def parse_question_number(text: str) -> int | None:
     normalized = normalize_ocr_text(text)
     if not normalized:
@@ -289,9 +292,12 @@ def run_ocr_layout(image_path: str, ocr_engine) -> list[OcrTextBox]:
 
 def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: int, page_height: int) -> list[QuestionAnchor]:
     anchors_by_number: dict[int, QuestionAnchor] = {}
-    # Skip the top 20% — Chinese exam papers have a header block (title + score table)
-    # that contains 一/二/三/… characters which must not be confused with question labels.
-    min_y = int(page_height * 0.20)
+    # Skip the very top of the page — exam titles ("一年级下册语文期末测试卷") often
+    # contain Chinese numerals too. Keep this modest: question 1 can legitimately start
+    # quite high (right below a one-line score table), so an aggressive threshold here
+    # ends up excluding the real q1 anchor — the remainder-length check below is the
+    # primary defence against score-table false positives, not this y-cutoff.
+    min_y = int(page_height * 0.10)
     max_x = int(page_width * 0.55)
 
     for text_box in ocr_boxes:
@@ -300,6 +306,15 @@ def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: 
 
         number = parse_question_number(text_box.text)
         if number is None:
+            continue
+
+        # Genuine question headers carry descriptive text after "一、" — e.g.
+        # "一、按要求规范书写下面句子。". Score-table cells / handwritten number
+        # strings ("一", "1、5", a stray "十、") that happen to match the
+        # numeral+punctuation pattern carry little or no text after it — drop those.
+        normalized = normalize_ocr_text(text_box.text)
+        remainder = _QUESTION_PREFIX_RE.sub("", normalized, count=1)
+        if len(remainder) < 2:
             continue
 
         current = anchors_by_number.get(number)
@@ -349,7 +364,10 @@ def build_question_boxes_from_anchors(corrected: np.ndarray, anchors: list[Quest
     if len(ordered) < 2:
         return []
 
-    left = max(0, min(anchor.box.x for anchor in ordered) - int(width * 0.04))
+    # Use the median anchor x (not min) so a single mis-detected anchor with an
+    # anomalous x position can't drag the shared left edge of every crop off-target.
+    anchor_xs = sorted(anchor.box.x for anchor in ordered)
+    left = max(0, int(np.median(anchor_xs)) - int(width * 0.04))
     right = min(width, width - int(width * 0.04))
     vertical_pad_top = int(height * 0.012)
     vertical_pad_bottom = int(height * 0.018)
@@ -589,60 +607,141 @@ def run_ocr(crop_path: str, ocr_engine=None) -> tuple[str, float]:
     return "；".join(texts), sum(confidences) / len(confidences)
 
 
-def build_crop_url(public_worker_url: str, job_id: str, crop_path: str) -> str:
+def build_crop_url(public_worker_url: str, job_id: str, crop_path: str, subdir: str = "") -> str:
     filename = Path(crop_path).name
     if public_worker_url:
-        return f"{public_worker_url.rstrip('/')}/crops/{job_id}/{filename}"
+        prefix = f"{job_id}/{subdir}" if subdir else job_id
+        return f"{public_worker_url.rstrip('/')}/crops/{prefix}/{filename}"
 
     data = Path(crop_path).read_bytes()
     encoded = base64.b64encode(data).decode("utf-8")
     return f"data:image/jpeg;base64,{encoded}"
 
 
-def process_job(job_id: str, image_path: str, public_worker_url: str = "", ocr_engine=None) -> dict:
+def _crop_and_recognize(
+    image_path: str,
+    job_id: str,
+    subdir: str,
+    public_worker_url: str,
+    ocr_engine,
+) -> tuple[list[dict], str]:
+    """Run perspective correction + per-question cropping + OCR on a single sheet image.
+
+    This is shared by BOTH the student answer sheet and the answer-key/rubric sheet —
+    using the *same* anchor-detection template for both is what lets us line up
+    "学生第N题作答" 与 "答案卷第N题参考答案/评分标准" for grading (see 需求文档 5.4:
+    "支持将答案卷题目区域映射到学生卷").
+    """
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"Could not read image: {image_path}")
 
     corrected, _paper_box = correct_perspective(image)
-    output_dir = f"/tmp/worker-crops/{job_id}"
+    output_dir = f"/tmp/worker-crops/{job_id}/{subdir}" if subdir else f"/tmp/worker-crops/{job_id}"
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     corrected_path = str(Path(output_dir) / "corrected.jpg")
     cv2.imwrite(corrected_path, corrected)
 
-    engine = ocr_engine or get_ocr_engine()
-    question_crops = crop_questions(corrected, output_dir, corrected_path, ocr_engine=engine)
-    results = []
+    question_crops = crop_questions(corrected, output_dir, corrected_path, ocr_engine=ocr_engine)
 
+    entries = []
     for crop in question_crops:
-        recognized_answer, confidence = run_ocr(crop.crop_path, ocr_engine=engine)
-        route = route_question(crop.question_type, confidence)
-        results.append(
+        recognized_answer, confidence = run_ocr(crop.crop_path, ocr_engine=ocr_engine)
+        entries.append(
             {
                 "questionId": crop.question_id,
-                "cropUrl": build_crop_url(public_worker_url, job_id, crop.crop_path),
+                "label": crop.label,
+                "questionType": crop.question_type,
+                "cropUrl": build_crop_url(public_worker_url, job_id, crop.crop_path, subdir=subdir),
                 "box": asdict(crop.box),
                 "recognizedAnswer": recognized_answer,
                 "ocrConfidence": confidence,
+                "cropConfidence": "low" if crop.box.confidence < 0.6 else "medium" if crop.box.confidence < 0.8 else "high",
+            }
+        )
+
+    return entries, build_crop_url(public_worker_url, job_id, corrected_path, subdir=subdir)
+
+
+def process_job(
+    job_id: str,
+    image_path: str,
+    public_worker_url: str = "",
+    ocr_engine=None,
+    answer_sheet_path: str | None = None,
+) -> dict:
+    engine = ocr_engine or get_ocr_engine()
+
+    student_entries, corrected_url = _crop_and_recognize(image_path, job_id, "student", public_worker_url, engine)
+
+    results = []
+    for entry in student_entries:
+        route = route_question(entry["questionType"], entry["ocrConfidence"])
+        results.append(
+            {
+                "questionId": entry["questionId"],
+                "cropUrl": entry["cropUrl"],
+                "box": entry["box"],
+                "recognizedAnswer": entry["recognizedAnswer"],
+                "ocrConfidence": entry["ocrConfidence"],
                 "route": route,
                 "score": 0,
                 "reason": "等待规则评分或老师确认",
                 "teacherComment": "",
-                "cropConfidence": "low" if crop.box.confidence < 0.6 else "medium" if crop.box.confidence < 0.8 else "high",
-                "reviewStatus": "needs_rescan" if crop.box.confidence < 0.6 else "auto_accepted",
+                "cropConfidence": entry["cropConfidence"],
+                "reviewStatus": "needs_rescan" if entry["cropConfidence"] == "low" else "auto_accepted",
                 "tokenEstimate": {"input": 0, "output": 0, "savedByRouting": 0},
             }
         )
+
+    # 需求文档 5.4/5.6 P0：把答案卷也按相同的题目区域模板裁剪 + OCR，
+    # 这样后端就能拿到"每道题的参考答案文本"，直接用文本批改（gradeWithKimi），
+    # 而不必把整张答案卷图片丢给 vision 模型（既慢、又容易因图片 URL 不被支持而失败）。
+    answer_key = None
+    if answer_sheet_path:
+        try:
+            answer_entries, _answer_corrected_url = _crop_and_recognize(
+                answer_sheet_path, job_id, "answer", public_worker_url, engine
+            )
+            answer_key = [
+                {
+                    "questionId": entry["questionId"],
+                    "label": entry["label"],
+                    "recognizedAnswer": entry["recognizedAnswer"],
+                    "ocrConfidence": entry["ocrConfidence"],
+                    "cropUrl": entry["cropUrl"],
+                }
+                for entry in answer_entries
+            ]
+        except Exception:
+            # Answer-key OCR is best-effort — if it fails we still return student results
+            # and let the backend fall back to teacher-entered rubrics / vision grading.
+            answer_key = None
 
     return {
         "jobId": job_id,
         "status": "needs_review",
         "results": results,
-        "correctedSheetUrl": build_crop_url(public_worker_url, job_id, corrected_path),
+        "answerKey": answer_key,
+        "correctedSheetUrl": corrected_url,
     }
 
 
-def process_remote_job(job_id: str, student_sheet_url: str, public_worker_url: str = "") -> dict:
-    input_path = f"/tmp/{job_id}-student-sheet"
-    download_image(student_sheet_url, input_path)
-    return process_job(job_id, input_path, public_worker_url=public_worker_url)
+def process_remote_job(
+    job_id: str,
+    student_sheet_url: str,
+    answer_sheet_url: str | None = None,
+    public_worker_url: str = "",
+) -> dict:
+    student_path = f"/tmp/{job_id}-student-sheet"
+    download_image(student_sheet_url, student_path)
+
+    answer_path = None
+    if answer_sheet_url:
+        answer_path = f"/tmp/{job_id}-answer-sheet"
+        try:
+            download_image(answer_sheet_url, answer_path)
+        except Exception:
+            answer_path = None
+
+    return process_job(job_id, student_path, public_worker_url=public_worker_url, answer_sheet_path=answer_path)

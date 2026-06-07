@@ -13,7 +13,14 @@ export function QuestionCropPanel({ result, rubric }: { result: QuestionResult; 
         </span>
       </div>
       <div className="relative h-72 overflow-hidden rounded-md bg-neutral-100 sm:h-80 lg:h-[360px]">
-        <Image src={result.cropUrl} alt={`${rubric.label} 答题区域`} fill className="object-cover object-top" />
+        {/*
+          object-contain (not object-cover): teachers need to see the FULL crop region
+          to judge whether OpenCV's question-box detection is accurate. object-cover
+          was silently clipping the left/right edges of wide crops to fill the box,
+          which made correctly-cropped questions look mis-cropped even when the
+          underlying box was fine.
+        */}
+        <Image src={result.cropUrl} alt={`${rubric.label} 答题区域`} fill className="object-contain" />
       </div>
     </div>
   );
