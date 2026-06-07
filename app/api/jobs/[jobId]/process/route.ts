@@ -37,7 +37,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
 
     await updateJobStatus(job.id, "processing");
 
-    const response = await fetch(`${workerUrl}/process`, {
+    // Use the worker's async endpoint (/process-async): it kicks off crop+OCR
+    // as a background task and returns immediately, then POSTs the full result
+    // to /api/worker/callback when done. The synchronous /process endpoint made
+    // this route block on the *entire* OCR pipeline — and that pipeline now (a)
+    // processes TWO sheets instead of one, (b) runs cold PaddleOCR model loads,
+    // and (c) is capped at containerConcurrency=1 on the worker — easily past
+    // both Vercel's `maxDuration` (300s) and the browser's own fetch deadline,
+    // which surfaces to the user as a bare "Failed to fetch" once the
+    // connection is cut mid-flight. The frontend already polls job status
+    // (shouldPollJob), so we don't need to hold this request open at all.
+    const response = await fetch(`${workerUrl}/process-async`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -66,7 +76,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ job
       workerResult = {};
     }
 
-    return NextResponse.json({ ok: true, status: workerResult.status ?? "needs_review" });
+    // /process-async always answers immediately with status "processing" — the
+    // real terminal status ("needs_review"/"failed"/...) arrives later via the
+    // callback, which is what shouldPollJob is watching job.status for.
+    return NextResponse.json({ ok: true, status: workerResult.status ?? "processing" });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown worker startup error";
     if (jobId) {

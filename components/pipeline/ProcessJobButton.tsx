@@ -44,7 +44,7 @@ export function ProcessJobButton({ jobId, shouldPoll }: ProcessJobButtonProps) {
         throw new Error(data.error ?? "启动失败");
       }
 
-      setStatus("OCR 完成，正在刷新结果...");
+      setStatus("已提交给 OCR 服务，正在后台裁切和识别（通常 1-3 分钟），完成后会自动刷新...");
       setIsPolling(true);
       router.refresh();
     } catch (error) {
