@@ -48,6 +48,15 @@ class QuestionAnchor:
     text: str
     box: CropBox
     order: int
+    # True when this anchor's number came from a Chinese numeral ("四、…").
+    # Top-level question headers on these exam sheets are always Chinese-numeral
+    # ("一、二、三、四、五…"); Arabic numerals ("1." "2." "5.") are overwhelmingly
+    # sub-item bullets *inside* a question (e.g. "5.过了（青/晴）明节…" inside
+    # question 三). Both parse to the same `number`, so without this flag a
+    # misread sub-item like "5." (mis-OCR'd from "4." or just colliding on 5)
+    # can stomp the real "五、" header in `anchors_by_number` and drag the crop
+    # boundary into the wrong region. See detect_question_anchors_from_boxes.
+    is_chinese_numeral: bool = True
 
 
 _CHINESE_NUMS = [
@@ -125,6 +134,19 @@ _QUESTION_PREFIX_RE = re.compile(r"^[（(]?(?:十[一二三四五六七八九]|[
 
 
 def parse_question_number(text: str) -> int | None:
+    candidate = parse_question_anchor_candidate(text)
+    return candidate[0] if candidate else None
+
+
+def parse_question_anchor_candidate(text: str) -> tuple[int, bool] | None:
+    """Returns (question_number, is_chinese_numeral) for a potential question-header line.
+
+    Distinguishing the two matters: top-level headers on these sheets are always
+    Chinese-numeral ("一、二、三、四、五…"), while Arabic-numeral prefixes ("1." "5.")
+    are almost always sub-item bullets *inside* a question. Both forms parse to the
+    same integer key, so callers must prefer the Chinese-numeral candidate when both
+    are seen for the same number (see detect_question_anchors_from_boxes).
+    """
     normalized = normalize_ocr_text(text)
     if not normalized:
         return None
@@ -132,12 +154,13 @@ def parse_question_number(text: str) -> int | None:
     # Match compound Chinese numbers (十一, 十二…) before single ones so alternation works left-to-right.
     chinese_match = re.match(r"^[（(]?(十[一二三四五六七八九]|[一二三四五六七八九十])[）)]?[、，,.]", normalized)
     if chinese_match:
-        return QUESTION_NUMBER_MAP.get(chinese_match.group(1))
+        number = QUESTION_NUMBER_MAP.get(chinese_match.group(1))
+        return (number, True) if number is not None else None
 
     arabic_match = re.match(r"^(\d{1,2})[、，,.]", normalized)
     if arabic_match:
         number = int(arabic_match.group(1))
-        return number if 1 <= number <= 20 else None
+        return (number, False) if 1 <= number <= 20 else None
 
     return None
 
@@ -304,9 +327,10 @@ def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: 
         if text_box.y < min_y or text_box.x > max_x:
             continue
 
-        number = parse_question_number(text_box.text)
-        if number is None:
+        candidate = parse_question_anchor_candidate(text_box.text)
+        if candidate is None:
             continue
+        number, is_chinese = candidate
 
         # Genuine question headers carry descriptive text after "一、" — e.g.
         # "一、按要求规范书写下面句子。". Score-table cells / handwritten number
@@ -318,8 +342,18 @@ def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: 
             continue
 
         current = anchors_by_number.get(number)
-        if current and current.box.confidence >= text_box.confidence:
-            continue
+        if current:
+            # Chinese-numeral headers ("五、…") always win over Arabic-numeral
+            # candidates ("5.…") for the same number — the latter are almost
+            # always sub-item bullets *inside* another question (e.g. "5.过了
+            # （青/晴）明节…" inside question 三), and letting one override the
+            # real "五、" header drags that question's crop into the wrong region.
+            if current.is_chinese_numeral and not is_chinese:
+                continue
+            if is_chinese and not current.is_chinese_numeral:
+                pass  # real header found — replace the false sub-item anchor below
+            elif current.box.confidence >= text_box.confidence:
+                continue
 
         question_id = f"q{number}"
         anchors_by_number[number] = QuestionAnchor(
@@ -328,6 +362,7 @@ def detect_question_anchors_from_boxes(ocr_boxes: list[OcrTextBox], page_width: 
             text=text_box.text,
             box=CropBox(text_box.x, text_box.y, text_box.width, text_box.height, text_box.confidence),
             order=number,
+            is_chinese_numeral=is_chinese,
         )
 
     return sorted(anchors_by_number.values(), key=lambda anchor: (anchor.order, anchor.box.y))

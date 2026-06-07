@@ -54,4 +54,72 @@ describe("autoGradeResults", () => {
     expect(graded[0].recognizedAnswer).toBe("学生答案");
     expect(graded[0].reason).toBe("暂无评分标准匹配，已展示 OCR 结果。");
   });
+
+  it("forwards the OCR-derived standard answer to Kimi and records real token usage", async () => {
+    const seenInputs: Array<{ standardAnswer: string; studentAnswer: string }> = [];
+    const graded = await autoGradeResults(job, [result], async (input) => {
+      seenInputs.push({ standardAnswer: input.standardAnswer, studentAnswer: input.studentAnswer });
+      return { score: 4, reason: "基本正确", confidence: 0.8, usage: { promptTokens: 321, completionTokens: 42 } };
+    });
+
+    // Kimi must always receive the answer-key-derived reference text alongside
+    // the student's OCR'd answer — otherwise it has nothing to grade against.
+    expect(seenInputs).toEqual([{ standardAnswer: "标准答案", studentAnswer: "学生答案" }]);
+    // The technical-details panel should reflect the *real* usage Kimi reported,
+    // not the worker's 0/0/0 placeholder — proving Kimi actually ran.
+    expect(graded[0].tokenEstimate).toEqual({ input: 321, output: 42, savedByRouting: 0 });
+  });
+
+  it("retries once on a 429 rate-limit error and still grades the question", async () => {
+    let attempts = 0;
+    const graded = await autoGradeResults(job, [result], async () => {
+      attempts += 1;
+      if (attempts === 1) {
+        throw new Error("Kimi request failed: 429 rate_limit_reached_error: max organization concurrency: 3");
+      }
+      return { score: 5, reason: "重试后成功", confidence: 0.9 };
+    });
+
+    expect(attempts).toBe(2);
+    expect(graded[0].route).toBe("llm");
+    expect(graded[0].score).toBe(5);
+    expect(graded[0].reason).toBe("重试后成功");
+  });
+
+  it("processes many questions with bounded concurrency and preserves result order", async () => {
+    const manyResults: QuestionResult[] = Array.from({ length: 6 }, (_, index) => ({
+      ...result,
+      questionId: `q${index + 1}`,
+      recognizedAnswer: `学生答案${index + 1}`
+    }));
+    const manyJob: Pick<GradingJob, "rubrics" | "calibrationNotes"> = {
+      calibrationNotes: [],
+      rubrics: manyResults.map((item, index) => ({
+        questionId: item.questionId,
+        label: `第${index + 1}题`,
+        type: "word",
+        fullScore: 10,
+        standardAnswer: `标准答案${index + 1}`,
+        standardSummary: "按标准答案给分",
+        points: [],
+        deductionRules: []
+      }))
+    };
+
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const graded = await autoGradeResults(manyJob, manyResults, async (input) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      inFlight -= 1;
+      const n = Number(input.questionId.replace("q", ""));
+      return { score: n, reason: `第${n}题得分`, confidence: 0.8 };
+    });
+
+    // Never exceed Moonshot's "max organization concurrency: 3" — we cap at 2.
+    expect(maxInFlight).toBeLessThanOrEqual(2);
+    expect(graded.map((item) => item.questionId)).toEqual(["q1", "q2", "q3", "q4", "q5", "q6"]);
+    expect(graded.map((item) => item.score)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
 });
