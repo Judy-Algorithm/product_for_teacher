@@ -7,7 +7,6 @@ import type { GradingJob } from "@/lib/types";
 import { GradingPanel } from "./GradingPanel";
 import { ProcessJobButton } from "./ProcessJobButton";
 import { QuestionCropPanel } from "./QuestionCropPanel";
-import { RubricEditor } from "./RubricEditor";
 
 export function QuestionReview({ job }: { job: GradingJob }) {
   return (
@@ -29,8 +28,11 @@ export function QuestionReview({ job }: { job: GradingJob }) {
           {job.results.length === 0 ? (
             <section className="rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
               <h2 className="text-lg font-semibold">任务已创建</h2>
-              <p className="mt-1 text-sm text-neutral-600">学生试卷和评分标准已经保存，下一步会交给 Python worker 做裁切和 OCR。</p>
-              <RubricEditor jobId={job.id} />
+              <p className="mt-1 text-sm text-neutral-600">
+                学生试卷和答案卷已经保存，下一步会交给 Python worker 做裁切和 OCR——
+                评分标准会自动从你上传的「答案与评分标准」图片中按题逐区识别提取，无需手动填写；
+                批改完成后如有偏差，可在结果页直接对每道题的得分进行修改。
+              </p>
               <div className="mt-4 border-t border-neutral-200 pt-4">
                 <ProcessJobButton jobId={job.id} shouldPoll={shouldPollJob(job)} />
               </div>
