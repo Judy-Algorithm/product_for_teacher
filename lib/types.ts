@@ -44,6 +44,22 @@ export interface QuestionRubric {
   deductionRules: Array<{ id: string; text: string; deduct: number }>;
 }
 
+/** One step of Kimi's "重组复原" (reconstruction) of a handwritten answer, grounded
+ *  to a region of the source image so a teacher can audit it against the crop. */
+export interface ReconstructionStep {
+  text: string;
+  /** Roughly where in the image this step appears, e.g. "左上角第一行" or "[无法辨认]" for illegible content — never a guess at the content itself. */
+  imageRegion: string;
+}
+
+/** Whether a single rubric scoring-point was satisfied, with a citation back to
+ *  the reconstruction (or an explicit "未找到依据") rather than a re-derived guess. */
+export interface PointCheck {
+  pointId: string;
+  satisfied: boolean;
+  evidence: string;
+}
+
 export interface QuestionResult {
   questionId: string;
   cropUrl: string;
@@ -58,6 +74,22 @@ export interface QuestionResult {
   errorType?: ErrorType;
   cropConfidence?: CropConfidence;
   reviewStatus?: ReviewStatus;
+  /** Kimi's self-reported grading confidence (0-1) — used to route low-confidence
+   *  results to teacher review instead of silently trusting a possibly-hallucinated score. */
+  llmConfidence?: number;
+  /** Kimi's "重组复原": its grounded transcription/reorganization of the handwritten
+   *  answer, shown to teachers as an auditable artifact alongside the crop image. */
+  reconstruction?: {
+    steps: ReconstructionStep[];
+    /** Kimi's self-rated confidence (0-1) in the *transcription* specifically — should be lower for messy/crossed-out/ambiguous handwriting. */
+    transcriptionConfidence: number;
+  };
+  /** Per-rubric-point grading evidence, each citing back to `reconstruction`. */
+  pointChecks?: PointCheck[];
+  /** Heuristic divergence (0 = identical, 1 = totally different) between Kimi's
+   *  reconstruction text and the worker's independent OCR `recognizedAnswer` — a
+   *  large gap is itself a hallucination signal, independent of Kimi's self-reported confidence. */
+  reconstructionDivergence?: number;
   tokenEstimate: {
     input: number;
     output: number;

@@ -91,6 +91,31 @@ export function GradingPanel({
           <div className="text-neutral-600">识别答案</div>
           <p className="mt-1 leading-7">{result.recognizedAnswer || "（未识别到文字）"}</p>
         </div>
+        {result.reconstruction && result.reconstruction.steps.length > 0 ? (
+          <div className="rounded-md border border-neutral-200 bg-white p-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-neutral-600">
+                AI 重组复原 <span className="text-xs text-neutral-400">（请对照左侧原图逐条核对，每条标注了它在图中的大致位置）</span>
+              </span>
+              {result.route === "teacher_review" ? (
+                <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-800">建议重点核对</span>
+              ) : null}
+            </div>
+            <ol className="mt-2 space-y-1.5 leading-6">
+              {result.reconstruction.steps.map((step, index) => (
+                <li key={index} className="flex gap-2">
+                  <span className="shrink-0 text-neutral-400">{index + 1}.</span>
+                  <span>
+                    {step.text}
+                    {step.imageRegion ? (
+                      <span className="ml-1.5 text-xs text-neutral-400">（{step.imageRegion}）</span>
+                    ) : null}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
         <div className="grid grid-cols-[120px_1fr] gap-3">
           <div className="rounded-md bg-blue-50 p-3 text-blue-900">
             <span className="block text-sm">得分</span>

@@ -1,5 +1,22 @@
-import { gradeWithKimi, gradeWithKimiVision, type KimiGradeResult } from "../kimi";
+import {
+  estimateReconstructionDivergence,
+  gradeWithKimi,
+  gradeWithKimiVision,
+  type KimiGradeResult,
+  type KimiVisionGradeResult
+} from "../kimi";
+import { LOW_LLM_CONFIDENCE_THRESHOLD } from "../grading-router";
 import type { GradingJob, QuestionResult } from "../types";
+
+/**
+ * Above this, Kimi's grounded reconstruction is considered to have diverged too
+ * far from the worker's *independent* OCR transcription to trust unattended —
+ * two independently-derived readings landing far apart is hard to explain away
+ * as anything but one of them being wrong. This is a complementary signal to
+ * `LOW_LLM_CONFIDENCE_THRESHOLD`: a model can be "confidently" wrong, so we
+ * don't rely on self-reported confidence alone (defense in depth).
+ */
+const HIGH_RECONSTRUCTION_DIVERGENCE_THRESHOLD = 0.7;
 
 type GradeWithKimi = typeof gradeWithKimi;
 
@@ -26,15 +43,57 @@ function fallbackResult(result: QuestionResult, reason: string): QuestionResult 
   };
 }
 
-function applyKimiResult(result: QuestionResult, kimiResult: KimiGradeResult, fullScore: number): QuestionResult {
+function applyKimiResult(
+  result: QuestionResult,
+  kimiResult: KimiGradeResult & Partial<Pick<KimiVisionGradeResult, "reconstruction" | "pointChecks">>,
+  fullScore: number
+): QuestionResult {
   const boundedScore = Math.min(Math.max(kimiResult.score, 0), fullScore);
+
+  // Cross-check Kimi's grounded reconstruction (when present — vision path only)
+  // against the worker's *independent* OCR transcription. A model can be
+  // "confidently" wrong, but two independently-derived readings landing far
+  // apart is a hallucination signal that self-reported confidence alone misses —
+  // this is the second, complementary leg of the abstention decision below.
+  const reconstructionText = kimiResult.reconstruction?.steps.map((step) => step.text).join("") ?? "";
+  const reconstructionDivergence = reconstructionText
+    ? estimateReconstructionDivergence(reconstructionText, result.recognizedAnswer)
+    : undefined;
+
+  // Don't silently trust a possibly-hallucinated score: route to the teacher
+  // when Kimi itself signals low confidence, OR when its reconstruction diverges
+  // sharply from an independent OCR pass. This operationalizes "confidence
+  // calibration + abstention" using data Kimi was already returning (`confidence`
+  // had been parsed and discarded until now) plus a cheap heuristic cross-check —
+  // no extra model calls, no added latency/cost.
+  const isLowConfidence = kimiResult.confidence < LOW_LLM_CONFIDENCE_THRESHOLD;
+  const isHighDivergence =
+    reconstructionDivergence !== undefined && reconstructionDivergence > HIGH_RECONSTRUCTION_DIVERGENCE_THRESHOLD;
+  const needsTeacherReview = isLowConfidence || isHighDivergence;
+
   return {
     ...result,
-    route: "llm",
+    route: needsTeacherReview ? "teacher_review" : "llm",
     score: boundedScore,
-    reason: kimiResult.reason || "Kimi 已根据评分标准批改",
-    teacherComment: result.teacherComment,
+    reason: kimiResult.reason || (needsTeacherReview ? "Kimi 已批改，但置信度较低" : "Kimi 已根据评分标准批改"),
+    teacherComment: needsTeacherReview
+      ? result.teacherComment ||
+        (isHighDivergence
+          ? "AI 还原内容与 OCR 识别结果差异较大，请老师核对原图后确认得分。"
+          : "Kimi 对该题批改的置信度较低，请老师核对原图后确认得分。")
+      : result.teacherComment,
     reviewStatus: result.reviewStatus === "needs_rescan" ? "needs_rescan" : "auto_accepted",
+    // Surface Kimi's self-reported confidence, its grounded "重组复原" (an
+    // auditable artifact teachers can compare against the crop image — see
+    // QuestionCropPanel/GradingPanel), the per-point evidence trail, and the
+    // OCR cross-check score. These are exactly the signals the abstention
+    // decision above is based on, AND the dataset that future threshold
+    // calibration needs (teacher corrections become ground truth — see
+    // LOW_LLM_CONFIDENCE_THRESHOLD's doc comment in grading-router.ts).
+    llmConfidence: kimiResult.confidence,
+    reconstruction: kimiResult.reconstruction,
+    pointChecks: kimiResult.pointChecks,
+    reconstructionDivergence,
     // Reflect the *real* token usage Moonshot reported for this call so the
     // technical-details panel proves Kimi actually ran (instead of always
     // showing the worker's 0/0/0 placeholder). savedByRouting stays 0 here —
